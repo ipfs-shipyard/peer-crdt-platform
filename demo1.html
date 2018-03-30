@@ -1,0 +1,39 @@
+<body>
+  <button id="clearStorageButton">Clear LocalStorage</button>
+  <div id="chat" style="height: 200px; width: 300px; overflow: scroll;"></div>
+  <div><input id="chatInput" type="text" /></div>
+
+<script src="out.js"></script>
+<script>
+const identityKeys = {
+  "publicKey": {
+    "kty": "RSA",
+    "key_ops": [
+      "verify"
+    ],
+    "e": "AQAB",
+    "n": "wmMAMwsgY2QAcNrHY5stCB2KRmHtN0Rajy2SKyHdSBqANgiaqh06jAuJgUsiS6B9FckYFLHR9R78Ie4_QLPJ-c-9iTL7LPomH9KtFMmO1BGikCYxGGwMsblE5X3uhiNoiRacqwcnexV_oG8suID6u-jDjjyEMvJUaYaKf5bRAI8ZuSHAxwCjfltXxsdHJRzyb5ELO472QeSQxzqsdBRQljlthS0Uuex4Arm8S9TESEZoEEF2mS5isWFUqCVBz3Hyvj35_e4yeycFakXo_Ap9g3FYxoY8D7iCY2AARTqf676jYNoc71aWHxqcT48dA9H54uBOliO0di7xaybJsAjkQw",
+    "alg": "RS512",
+    "ext": true
+  },
+  "privateKey": {
+    "kty": "RSA",
+    "key_ops": [
+      "sign" ], "e": "AQAB",
+    "n": "wmMAMwsgY2QAcNrHY5stCB2KRmHtN0Rajy2SKyHdSBqANgiaqh06jAuJgUsiS6B9FckYFLHR9R78Ie4_QLPJ-c-9iTL7LPomH9KtFMmO1BGikCYxGGwMsblE5X3uhiNoiRacqwcnexV_oG8suID6u-jDjjyEMvJUaYaKf5bRAI8ZuSHAxwCjfltXxsdHJRzyb5ELO472QeSQxzqsdBRQljlthS0Uuex4Arm8S9TESEZoEEF2mS5isWFUqCVBz3Hyvj35_e4yeycFakXo_Ap9g3FYxoY8D7iCY2AARTqf676jYNoc71aWHxqcT48dA9H54uBOliO0di7xaybJsAjkQw",
+    "d": "wkkvJtVlHtIRurqAdWbgoG7eCLDR5t5T4S08Hg4v3GRYZyk8ZPDn1pelbOwKsCoNO5wNjImaf3Pjr4owAFxycFQZbard77tqJX5tbgxyzDWAFLGHepBsM6ooWXP_1mRHlFVca3iwFk6LjG_x88s-UFg6NMz5mO4qPnqxrQqxhOrEUX1RJLEVScRVOh-HzzzUnJgzeVJg19iRQhf_rcBqubr0modepmNNK6CyJGZ6RyIVi2F_VNPCq9sIpxQckmJduUCHyNwUhrXTDvdFZjQA-CERmrkmsvy_yzvLaRqXLfeNAash6GOaHxm8nkQ23Va4QWf9qC7E1yNqZVD0czd6aQ",
+    "p": "5CpeI2EbhGlqStFsaVy-Gv_isW6rVM7BrZF-CejOnl-3Kn9j1_zGsUrTsne87yot6T588q9dWN3eqF9gNqSwwDPOSr4n42zkc00OAnP1RVqtDLwXGSXzVOu-R95-1MrZAii3pmrW1HKgN01lC82PFsGmgHkU7N5gABjFMJyyW6c",
+    "q": "2hm35EEFJDrBTc9CMquLfFeDbDK86EsLTxD6o8Ot3yon_Q1IOu4oJHcN0C-RAQ8mNOjGcHL7oNFbsMA7rc85de-BdYDw2CckbXWz-ikjk9Zzpek6GadwLbquxnClEep24fhDFyWvBkGdwtlB9ik4nzZYR_qX6T89RQJv8SiFVgU",
+    "dp": "iBO0nUkXDjuIhyKrk5MaViPyYXvtduDwpcG199b_E3lmVlQvietZ3PcRlsjOx5zSUN9RybNI6u04FBb93NkQCTFcgTszsvGItjNofZIG39wahRPQetEldKo8i8RoxCROlHkQPpJNmdrbLuBbuVRZWGsaEFkmX7aobqZXRIzP2tU",
+    "dq": "1mgQEpEk58_m9oI41q0zq-Iwba6XbVlQ3cKYU2PrywabVza2elBkICz15GLOjxcAfWUUp7kxy4_lLqZcROsB1wHD5-sBWc1pDz511wiYVB6vhDv6hPvI2Pu8E5Lrg-hWRKEV-2xtWp4o5ENGiCNP6Zy4PtKIgqFLr0rNF2u5YK0",
+    "qi": "RgHcK_EcaxhdDMUzWTAf5XGA6EOFYRAzX9MvjioB__I3zYh7j2OQmJ85ZYAE8PDVQnmEH3MgK5m05qw9AktUrzljmalMqDGRFTijHjaVmq7qx-ImTnO7nkGsMBBwR4qPH_4cV-R0RexcRZp5bnRCpADefSZEhjF0trDUkLvHHew",
+    "alg": "RS512",
+    "ext": true
+  }
+};
+
+window.start('admin@andyet.com', identityKeys);
+
+
+</script>
+</body>
