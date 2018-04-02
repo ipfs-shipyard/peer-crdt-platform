@@ -6,9 +6,11 @@ npm start`
 Load chrome with 3 different profiles.
 Let the first one run for about 10 seconds before starting the others to establish the base data of the application.
 
-`google-chrome --profile-directory="Demo 1" http://localhost:8080/demo1.html
+```sh
+google-chrome --profile-directory="Demo 1" http://localhost:8080/demo1.html
 google-chrome --profile-directory="Demo 2" http://localhost:8080/demo2.html
-google-chrome --profile-directory="Demo 3" http://localhost:8080/demo3.html`
+google-chrome --profile-directory="Demo 3" http://localhost:8080/demo3.html
+```
 
 ## What's the demo doing?
 
