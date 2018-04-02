@@ -1,7 +1,9 @@
-<script src="out.js"></script>
 <body>
   <button id="clearStorageButton">Clear LocalStorage</button>
+  <div id="chat" style="height: 200px; width: 300px; overflow: scroll;"></div>
+  <div><input id="chatInput" type="text" /></div>
 
+<script src="out.js"></script>
 <script>
 const identityKeys = {
   "publicKey": {
@@ -32,19 +34,7 @@ const identityKeys = {
   }
 };
 
-const clearStorageButton = document.getElementById('clearStorageButton');
-clearStorageButton.addEventListener('click', () => {
-  console.log('Clearing local storage. Next time, a session key pair will have to be generated and signed.');
-  window.localStorage.clear();
-});
-
-async function start() {
-  console.log('Starting demo 1');
-  await initializePeer({funcs: {}
-  }, identityKeys);
-};
-
-start();
+window.start('demo3@andyet.com', identityKeys);
 
 
 </script>

@@ -1,12 +1,11 @@
 const PeerCRDTPlatform = require('./src/index.js');
-const IdenityKey = require('./test/data/masterkeys.jwk.json');
+//const IdenityKey = require('./test/data/masterkeys.jwk.json');
 const StayDown = require('staydown');
 const UUID = require('uuid/v4');
 
 const ALGO = { name: 'RSASSA-PKCS1-v1_5' };
 const CAPS = ['sign', 'verify'];
 const HASH = { name: 'SHA-512' };
-
 
 window.initializePeer = async (config, id, IdentityKey) => {
 
@@ -34,26 +33,64 @@ window.initializePeer = async (config, id, IdentityKey) => {
 
   config.id = id;
   config.tables = tables;
+  config.appId = 'peer-crdt-platform-demo3';
+  config.permissions = {
+    'user:admin@andyet.com': {'chat': ['*']},
+    'user:demo2@andyet.com': {'chat': ['new', 'delete-self', 'rewrite-self']},
+    'user:demo3@andyet.com': {'chat': ['new']}
+  };
+
+  function Log(txt) {
+    const logDiv = document.createElement('div');
+    const logTxt = document.createTextNode('Log: ' + txt);
+    logDiv.appendChild(logTxt);
+    staydown.append(logDiv);
+  }
+
+  function ErrorLog(txt) {
+    const logDiv = document.createElement('div');
+    const logTxt = document.createTextNode('Error: ' + txt);
+    logDiv.appendChild(logTxt);
+    staydown.append(logDiv);
+  }
+
+  config.log = Log;
+  config.errorLog = ErrorLog;
+
 
   const App = new PeerCRDTPlatform(config);
   await App.initialize();
-  App.data.tables.chat.on('change', (e) => {
-    console.log('chat changed', e);
-    if (e.type === 'set') {
-      const value = e.value;
+  App.tableData.chat.on('change', (e) => {
+    if (e.type === 'set' && e.value._action !== 'delete') {
+      const value = e.value.msg;
       const chatdiv = document.createElement('div');
-      const chattxt = document.createTextNode('chat: ' + value);
+      chatdiv.setAttribute('id', e.key);
+      const chattxt = document.createTextNode(`${e.value._id}: ${value}`);
+      const chata = document.createElement('a');
+      const atxt = document.createTextNode(' X');
+      chata.setAttribute('onclick', `deleteChat("${e.key}")`);
       chatInput.value = '';
       chatdiv.appendChild(chattxt);
+      chata.appendChild(atxt);
       staydown.append(chatdiv);
+      chatdiv.appendChild(chata);
+    } else if (e.type === 'set' && e.value._action === 'delete') {
+      console.log("DELETING", e);
+      const div = document.getElementById(e.key);
+      div.remove();
     }
   });
+
+
+  window.deleteChat = (id) => {
+    App.tableData.chat.set(id, { _action: 'delete' });
+  };
 
   const chatInput = document.getElementById('chatInput');
   chatInput.addEventListener('keyup', (e) => {
     if (e.keyCode === 13) {
       const value = chatInput.value;
-      App.data.tables.chat.set(UUID(), value);
+      App.tableData.chat.set(UUID(), {msg: value});
     }
   });
 };

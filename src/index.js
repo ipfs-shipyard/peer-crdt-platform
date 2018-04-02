@@ -6,6 +6,7 @@ const IPFS = require('ipfs')
 const PeerCRDT = require('peer-crdt')
 const PeerCrdtIpfs = require('peer-crdt-ipfs');
 const Base64 = require('js-base64').Base64;
+const UUID = require('uuid/v4');
 
 //const crypto = new WebCrypto();
 const ALGO = { name: 'RSASSA-PKCS1-v1_5' };
@@ -28,63 +29,19 @@ const DEFAULTCONFIG = {
   tables: {},
 }
 
-/*
-const id = 'alkjdsflakjdsf';
-const schema = {
-  a: 'g-set',
-  b: 'lww-set'
-}
-
-const MyCRDT = CRDT.defaults({
-  store: (id) => new Store(id),
-  network: (id, log, onRemoteHead) => new Network(id, log, onRemoteHead, 100),
-  sign: (entry, parents) => {
-    console.log('signing', entry);
-    return 'authentication for ' + entry;
-  },
-  authenticate: (entry, parents, signature) => {
-    console.log('verifying signature', entry, parents, signature);
-    return true;
-    return 'authentication for ' + entry === signature;
-  },
-  signAndEncrypt: (value) => {
-    console.log('sign and encrypt', value);
-    return JSON.stringify(value);
-  },
-  decryptAndVerify: (value) => {
-    console.log('decrypt and verify', value.toString('utf8'));
-    return JSON.parse(value);
-  }
-});
-
-const myc = MyCRDT.create('g-set', 'abcabc');
-const myc2 = MyCRDT.create('g-set', 'abcabc');
-myc.network.start();
-myc2.network.start();
-//const myCrdtInstance = MyCRDT(id)
-//
-
-
-myc2.on('change', () => {
-  console.log('2 new value:', myc.value())
-});
-myc.on('change', () => {
-  console.log('new value:', myc.value())
-});
-
-myc.add({a:'hellothere'});
-*/
-
 class IPFSDAppPlatform {
 
   constructor(config) {
 
     this.config = { ...DEFAULTCONFIG, ...config };
     let { privKey, pubKey } = this.config;
-    console.log(this.config);
     this.config.keys.privateKey = privKey || null;
     this.config.keys.publicKey = pubKey || null;
     this.config.keys.publicKeySig = null;
+    this.keyCache = new Map();
+    if (!this.config.appId) {
+      throw new Error('Must specify config.appId.');
+    }
 
     this.ipfs = window.IPFS = new IPFS({
       EXPERIMENTAL: {
@@ -93,9 +50,7 @@ class IPFSDAppPlatform {
       config: {
         Addresses: {
           Swarm: [
-            //'/dns4/protocol.andyet.net/tcp/9090/ws/p2p-websocket-star'
             '/dns4/ws-star.discovery.libp2p.io/tcp/443/wss/p2p-websocket-star'
-            //'/dns4/protocol.andyet.net/tcp/9090/ws/p2p-websocket-star/'
           ]
         }
       }
@@ -104,26 +59,27 @@ class IPFSDAppPlatform {
     this.peerCrdtIpfs = PeerCrdtIpfs(this.ipfs);
     this.CRDT = PeerCRDT.defaults(this.peerCrdtIpfs);
 
-    const spec = {
+    const metaSpec = {
       groups: 'mv-register',
       permissions: 'mv-register',
       users: 'mv-register',
       sessions: 'mv-register',
-      tables: {
-      }
     };
+    const tablesSpec = {};
     for (const tblname of Object.keys(this.config.tables)) {
-      spec.tables[tblname] = 'lww-register';
+      tablesSpec[tblname] = 'lww-register';
     }
 
-    this.DataType = this.CRDT.compose(spec);
+    this.MetaType = this.CRDT.compose(metaSpec);
+    this.TablesType = this.CRDT.compose(tablesSpec);
 
-    this.data = this.DataType.create('peer-crdt-platform-demo1', {
-      signAndEncrypt: this.handleEncrypt.bind(this),
-      decryptAndVerify: this.handleDecrypt.bind(this),
-      sign: this.handleSign.bind(this),
-      authenticate: this.handleAuthenticate.bind(this),
+    this.metaData = this.MetaType.create(`${this.config.appId}-meta`, {
+      signAndEncrypt: this.handleEncryptMeta.bind(this),
+      decryptAndVerify: this.handleDecryptMeta.bind(this),
+      sign: () => "",
+      authenticate: () => true
     });
+
   }
 
   async initialize() {
@@ -132,14 +88,15 @@ class IPFSDAppPlatform {
       const privKeyString = window.localStorage.getItem('sessionPrivateJWK');
       const pubKeyString = window.localStorage.getItem('sessionPublicJWK');
       this.sessionProof = window.localStorage.getItem('sessionProof');
+      this.sessionId = window.localStorage.getItem('sessionId');
       if (privKeyString) {
-        this.config.keys.privateKey = crypto.subtle.importKey('jwk', JSON.parse(privKeyString), {
+        this.config.keys.privateKey = await crypto.subtle.importKey('jwk', JSON.parse(privKeyString), {
           name: ALGO.name,
           hash: HASH
         }, true, ['sign']);
       }
       if (pubKeyString) {
-        this.config.keys.publicKey = crypto.subtle.importKey('jwk', JSON.parse(pubKeyString), {
+        this.config.keys.publicKey = await crypto.subtle.importKey('jwk', JSON.parse(pubKeyString), {
           name: ALGO.name,
           hash: HASH
         }, true, ['verify']);
@@ -147,8 +104,11 @@ class IPFSDAppPlatform {
     }
 
     // generate a new key
+    let newSession = false;
     if (!this.config.keys.privateKey && !this.config.keys.publicKey) {
-      console.log('Generating key...');
+      newSession = true;
+      this.sessionId = UUID();
+      this.log('Generating key...');
       this.keyPair = await crypto.subtle.generateKey({
         name: ALGO.name,
         modulusLength: 2048,
@@ -158,56 +118,198 @@ class IPFSDAppPlatform {
       this.config.keys.privateKey = this.keyPair.privateKey;
       this.config.keys.publicKey = this.keyPair.publicKey;
 
-      console.log('Generated. Exporting for signing and storage...');
+      this.log('Generated. Exporting for signing and storage...');
       const privExport = await crypto.subtle.exportKey('jwk', this.config.keys.privateKey);
       const pubExport = await crypto.subtle.exportKey('jwk', this.config.keys.publicKey);
-      console.log('Exported. Signing public session key...');
-      const sig = await this.config.funcs.signIdentity(Base64.encode(JSON.stringify(pubExport)));
-      this.sessionProof = `${Base64.encode(this.config.id)}.${Base64.encode(JSON.stringify(pubExport))}.${sig}`;
-      console.log('Signed.');
+      this.log('Exported. Signing public session key...');
+      const identity =  `${Base64.encode(this.config.id)}::${this.sessionId}::${Base64.encode(JSON.stringify(pubExport))}`;
+      const sig = await this.config.funcs.signIdentity(identity);
+      this.sessionProof = `${identity}.${sig}`;
+      this.log('Signed.');
 
       if (isBrowser) {
-        console.log('Storing keys');
+        this.log('Storing keys');
         window.localStorage.setItem('sessionPrivateJWK', JSON.stringify(privExport));
         window.localStorage.setItem('sessionPublicJWK', JSON.stringify(pubExport));
         window.localStorage.setItem('sessionProof', this.sessionProof);
-        console.log('Stored.');
+        window.localStorage.setItem('sessionId', this.sessionId);
+        this.log('Stored.');
       }
 
+      /*
       console.log('showing key');
       console.log(JSON.stringify({
         publicKey: pubExport,
         privateKey: privExport
       }, null, 2));
+      */
 
     } else {
-      console.log('Loaded session keys from localstorage');
+      this.log('Loaded session keys from localstorage');
     }
-    console.log('proof:', this.sessionProof);
-    console.log("Starting network for CRDT");
-    await this.data.network.start();
-    console.log("Network started...");
+    this.log('Generated Proof');
+    this.log("Starting network for CRDT");
+    this.metaData.sessions.on('change', (e) => {
+
+      //TODO optimize
+      this.sessions = this.metaData.sessions.value();
+    });
+    this.permissions = new Map();
+    this.metaData.permissions.on('change', (e) => {
+
+      //TODO optimize
+      this.permissions = this.metaData.permissions.value();
+    });
+    this.sessions = new Map();
+    await this.metaData.network.start();
+
+
+    this.log('Waiting for app metadata to resolve');
+    await new Promise((resolve, reject) => {
+      setTimeout(resolve, 5000);
+    });
+
+    const permissions = this.metaData.permissions.value();
+    if (permissions.size === 0 && this.config.permissions) {
+      this.log("Permissions don't exist (fresh app), writing permissions.");
+      //TODO make sure you have permission to update permissions
+      for (const name of Object.keys(this.config.permissions)) {
+        this.log(`setting permissions for ${name} ${this.config.permissions[name]}`);
+        await this.metaData.permissions.set(name, this.config.permissions[name]);
+      }
+    }
+
+    if (newSession && !this.sessions.has(this.sessionId)) {
+      this.log("Setting session key...");
+      const pubExport = await crypto.subtle.exportKey('jwk', this.config.keys.publicKey);
+      this.log('session id ' +  this.sessionId);
+      this.metaData.sessions.set(this.sessionId, {id: this.config.id, proof: this.sessionProof, publicKey: pubExport});
+      this.log("Done.");
+    }
+
+    this.log("Starting table network...");
+    this.tableData = this.TablesType.create(`${this.config.appId}-tables`, {
+      signAndEncrypt: this.handleEncryptTable.bind(this),
+      decryptAndVerify: this.handleDecryptTable.bind(this),
+      sign: () => "",
+      authenticate: (e) => {
+        const [opB, sigStr] = e.split('.');
+        return true;
+      },
+      validate: (id, log) => {
+        const [_, table] = id.split('/');
+        const value = log[2];
+        if (!this.permissions.has(`user:${value._id}`)) {
+          this.errorLog(`NO_PERMISSION`);
+          return false;
+        }
+        let perms = this.permissions.get(`user:${value._id}`);
+        if (Array.isArray(perms)) {
+          perms = perms[0];
+        }
+        if (!Array.isArray(perms[table])) {
+          this.errorLog(`${value._id} does not have permissions to ${table}`);
+          return false;
+        }
+        perms = new Set(perms[table]);
+        if (perms.has('*')) {
+          return true;
+        }
+        //TODO optimize
+        const tabledata = this.tableData[table].value();
+        if (tabledata.has(log[1])) {
+          let existing = tabledata.get(log[1]);
+          if (Array.isArray(existing)) {
+            existing = existing[0];
+          }
+          if (existing._id !== value._id && !perms.has('rewrite-other')) {
+            this.errorLog('PERM_CANNOT_REWRITE_OTHER');
+            return false;
+          }
+          if (existing._id === value._id) {
+            if (value._action ===  'delete' && !perms.has('delete-self')) {
+              this.errorLog('PERM_CANNOT_DELETE_OWN');
+              return false;
+            } else if (!perms.has('rewrite-self')) {
+              this.errorLog('PERM_CANNOT_REWRITE_OWN');
+              return false;
+            }
+          }
+        } else if (!perms.has('new')) {
+          this.errorLog('PERM_CANNOT_CREATE');
+          return false;
+        }
+        return true;
+      }
+    });
+
+    await this.tableData.network.start();
+    this.log("Network started.");
   }
 
-  handleEncrypt(operation) {
+  handleEncryptMeta(operation) {
     return JSON.stringify(operation);
   }
 
-  handleDecrypt(operation) {
+  handleDecryptMeta(operation) {
     const op = JSON.parse(operation);
-    console.log(operation.toString('utf8'));
     return op;
   }
 
-  async handleSign(entry, parents) {
-    console.log('sign', entry, parents);
-    return Promise.resolve("herpderp");
+  log(txt) {
+    if (this.config.log) {
+      this.config.log(txt);
+    }
   }
 
-  async handleAuthenticate(entry, parents, signature) {
-    console.log('authenticate', entry, parents, signature);
-    return Promise.resolve(false);
+  errorLog(txt) {
+    if (this.config.errorLog) {
+      this.config.errorLog(txt);
+    }
   }
+
+  async handleEncryptTable(operation) {
+    operation[2]._id = this.config.id;
+    operation[2]._session = this.sessionId;
+    //const sigArr = await crypto.subtle.sign(ALGO , privKey, Buffer.from(sesskey, 'utf8'));
+    const stringOp = Base64.encode(JSON.stringify(operation));
+    const sigArr = await crypto.subtle.sign(ALGO, this.config.keys.privateKey, Buffer.from(stringOp), 'utf8');
+    const sig = btoa(
+      new Uint8Array(sigArr).reduce((data, byte) => data + String.fromCharCode(byte), '')
+    );
+    return `${stringOp}.${sig}`;
+  }
+
+  async handleDecryptTable(operation) {
+    operation = Buffer.from(operation).toString('utf8');
+    const [stringOp, sigStr] = operation.split('.');
+    let sig;
+    try {
+      sig = Uint8Array.from(atob(sigStr), c => c.charCodeAt(0))
+    } catch (e) {
+      this.errorLog('DECRYPT_BAD_SIG');
+      return false;
+    }
+    const op = JSON.parse(Base64.decode(stringOp));
+    const session = op[2]._session;
+    if (!this.sessions.has(session)) {
+      this.errorLog('DECRYPT_UNKNOWN_SESSION');
+      return false;
+    }
+    if (!this.keyCache.has(session)) {
+      const keyJSON = this.sessions.get(session)[0].publicKey;
+      const key = await crypto.subtle.importKey('jwk', keyJSON, { name: ALGO.name, hash: HASH }, true, ['verify']);
+      this.keyCache.set(session, key);
+    }
+    const publicKey = this.keyCache.get(session);
+    const verified = await crypto.subtle.verify(ALGO, publicKey, sig, Buffer.from(stringOp, 'utf8'));
+    if (!verified) {
+      this.errorLog('DECRYPT_FAILED_VALIDATION');
+      return false;
+    }
+    return op;
+  }
+
 }
 
 module.exports = IPFSDAppPlatform;
