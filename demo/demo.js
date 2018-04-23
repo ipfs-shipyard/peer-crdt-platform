@@ -1,5 +1,4 @@
-const PeerCRDTPlatform = require('./src/index.js');
-//const IdenityKey = require('./test/data/masterkeys.jwk.json');
+const PeerCRDTPlatform = require('../src/index.js');
 const StayDown = require('staydown');
 const UUID = require('uuid/v4');
 
@@ -31,7 +30,7 @@ window.initializePeer = async (config, id, IdentityKey) => {
     return sig;
   };
 
-  config.id = id;
+  config.userId = id;
   config.tables = tables;
   config.appId = 'peer-crdt-platform-demo3';
   config.permissions = {
@@ -77,7 +76,9 @@ window.initializePeer = async (config, id, IdentityKey) => {
     } else if (e.type === 'set' && e.value._action === 'delete') {
       console.log("DELETING", e);
       const div = document.getElementById(e.key);
-      div.remove();
+      if (div) {
+        div.remove();
+      }
     }
   });
 
@@ -109,7 +110,6 @@ var staydown = new StayDown({
   max: 50,
   stickyHeight: 10,
 });
-
 
 async function start(id, identityKeys) {
   console.log('Starting demo 1');

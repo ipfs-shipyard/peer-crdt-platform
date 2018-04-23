@@ -2,6 +2,10 @@ const RSA = { name: 'RSASSA-PKCS1-v1_5' };
 const testValue = 'I am the very model of a modern major general.';
 const testValue2 = 'I am the very model of a modern majr general.';
 
+//if browser, uses window.crypto, if node wraps openssl
+const WebCrypto = require('node-webcrypto-ossl');
+const crypto = new WebCrypto();
+
 (async () => {
   console.log('generating key');
   let keypair;
@@ -11,7 +15,7 @@ const testValue2 = 'I am the very model of a modern majr general.';
       modulusLength: 2048,
       publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
       hash: { name: 'SHA-512' },
-    }, true, ['sign', 'verify', 'wrapKey', 'unwrapKey']);
+    }, true, ['sign', 'verify']);
   } catch (e) {
     console.error(e);
   }

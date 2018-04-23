@@ -7,6 +7,7 @@ const PeerCRDT = require('peer-crdt')
 const PeerCrdtIpfs = require('peer-crdt-ipfs');
 const Base64 = require('js-base64').Base64;
 const UUID = require('uuid/v4');
+const Table = require('./table');
 
 //const crypto = new WebCrypto();
 const ALGO = { name: 'RSASSA-PKCS1-v1_5' };
@@ -27,6 +28,7 @@ const DEFAULTCONFIG = {
     }
   },
   tables: {},
+  swarm: ['/dns4/ws-star.discovery.libp2p.io/tcp/443/wss/p2p-websocket-star']
 }
 
 class IPFSDAppPlatform {
@@ -49,9 +51,7 @@ class IPFSDAppPlatform {
       },
       config: {
         Addresses: {
-          Swarm: [
-            '/dns4/ws-star.discovery.libp2p.io/tcp/443/wss/p2p-websocket-star'
-          ]
+          Swarm: this.config.swarm
         }
       }
     });
@@ -66,8 +66,13 @@ class IPFSDAppPlatform {
       sessions: 'mv-register',
     };
     const tablesSpec = {};
+    this.tables = {};
+    this.tableQueue = {};
+
     for (const tblname of Object.keys(this.config.tables)) {
       tablesSpec[tblname] = 'lww-register';
+      this.tables[tblname] = new Table(this, tblname, this.config.tables[tblname]);
+      this.tableQueue[tblname] = [];
     }
 
     this.MetaType = this.CRDT.compose(metaSpec);
@@ -122,7 +127,7 @@ class IPFSDAppPlatform {
       const privExport = await crypto.subtle.exportKey('jwk', this.config.keys.privateKey);
       const pubExport = await crypto.subtle.exportKey('jwk', this.config.keys.publicKey);
       this.log('Exported. Signing public session key...');
-      const identity =  `${Base64.encode(this.config.id)}::${this.sessionId}::${Base64.encode(JSON.stringify(pubExport))}`;
+      const identity =  `${Base64.encode(this.config.userId)}::${this.sessionId}::${Base64.encode(JSON.stringify(pubExport))}`;
       const sig = await this.config.funcs.signIdentity(identity);
       this.sessionProof = `${identity}.${sig}`;
       this.log('Signed.');
@@ -183,7 +188,7 @@ class IPFSDAppPlatform {
       this.log("Setting session key...");
       const pubExport = await crypto.subtle.exportKey('jwk', this.config.keys.publicKey);
       this.log('session id ' +  this.sessionId);
-      this.metaData.sessions.set(this.sessionId, {id: this.config.id, proof: this.sessionProof, publicKey: pubExport});
+      this.metaData.sessions.set(this.sessionId, {id: this.config.userId, proof: this.sessionProof, publicKey: pubExport});
       this.log("Done.");
     }
 
@@ -269,7 +274,7 @@ class IPFSDAppPlatform {
   }
 
   async handleEncryptTable(operation) {
-    operation[2]._id = this.config.id;
+    operation[2]._id = this.config.userId;
     operation[2]._session = this.sessionId;
     //const sigArr = await crypto.subtle.sign(ALGO , privKey, Buffer.from(sesskey, 'utf8'));
     const stringOp = Base64.encode(JSON.stringify(operation));
